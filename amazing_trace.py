@@ -4,26 +4,20 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator
 import time
 import os
+from subprocess import run
+import re
 
 def execute_traceroute(destination):
-    """
-    Executes a traceroute to the specified destination and returns the output.
+    # Run the traceroute command and get the output
+    result = run(["traceroute", "-I", destination], capture_output=True)
+    # If there was an error, throw it
+    if result.stderr:
+        raise Exception(result.stderr.decode())
+    # Otherwise, return the output
+    else:
+        return result.stdout.decode()
 
-    Args:
-        destination (str): The hostname or IP address to trace
-
-    Returns:
-        str: The raw output from the traceroute command
-    """
-    # Your code here
-    # Hint: Use the subprocess module to run the traceroute command
-    # Make sure to handle potential errors
-
-    # Remove this line once you implement the function,
-    # and don't forget to *return* the output
-    pass
-
-def parse_traceroute(traceroute_output):
+def parse_traceroute(traceroute_output: str):
     """
     Parses the raw traceroute output into a structured format.
 
@@ -67,7 +61,34 @@ def parse_traceroute(traceroute_output):
 
     # Remove this line once you implement the function,
     # and don't forget to *return* the output
-    pass
+    dict_list = []
+    lines = traceroute_output.strip().split("\n")
+    # Iterate over each line in the output, except the first one (it doesn't have any data)
+    for line in lines[1:]:
+        hop_dict = {}
+        # Perform a regex search to find each necessary element
+        hop_dict["hop"] = re.search("^(?: *)([0-9]*)", line)
+        hop_dict["ip"] = re.search("([0-9]{1,3}[.]){3}[0-9]{1,3}", line)
+        hop_dict["hostname"] = re.search("([^ ]*)(?: [(])", line)
+        # Convert all the found times to a number
+        hop_dict["rtt"] = [float(i) for i in re.findall("([0-9]*[.][0-9]*)(?: ms)", line)]
+
+        # Get the actual match from each part if it was found
+        if hop_dict["hop"]:
+            hop_dict["hop"] = int(hop_dict["hop"][1])
+        if hop_dict["ip"]:
+            hop_dict["ip"] = hop_dict["ip"][0]
+        if hop_dict["hostname"]:
+            hop_dict["hostname"] = hop_dict["hostname"][1]
+            # Do a extra check for if the hostname is just the ip address
+            if hop_dict["hostname"] == hop_dict["ip"]:
+                hop_dict["hostname"] = None
+        # Pad the times list with Nones
+        while len(hop_dict["rtt"]) < 3:
+            hop_dict["rtt"].append(None)
+        dict_list.append(hop_dict)
+    return dict_list
+
 
 # ============================================================================ #
 #                    DO NOT MODIFY THE CODE BELOW THIS LINE                    #
